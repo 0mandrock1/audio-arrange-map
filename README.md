@@ -20,8 +20,11 @@ cues (bar.beat → name; rename after listening)
 
 1. Detects tempo and beats, estimates the downbeat from low-band onsets, builds a bar grid.
 2. Computes per-bar MFCC + chroma, a bar-level self-similarity matrix and a checkerboard novelty curve; boundaries snap to the 4-bar phrase grid.
-3. Reports each section's length in bars, start time, RMS energy relative to the loudest section, its delta vs the previous one, and spectral brightness.
-4. The skill then reads the table (lift / breakdown / build-by-orchestration) and transfers the shape to a blank arrangement at your tempo.
+3. Lays a regular bar grid from the tempo and the estimated downbeat (beat trackers drop beats in sparse passages, so raw beat counting would merge bars).
+4. Reports each section's length in bars, start time, RMS energy relative to the loudest section, its delta vs the previous one, and spectral brightness.
+5. The skill then reads the table (lift / breakdown / build-by-orchestration) and transfers the shape to a blank arrangement at your tempo.
+
+`--json` additionally writes per-bar energy and brightness, the novelty curve, the bar-level self-similarity matrix and the sections — enough to draw your own charts.
 
 ## Install
 
@@ -30,7 +33,7 @@ cues (bar.beat → name; rename after listening)
 
 ```sh
 pip install librosa soundfile
-python3 scripts/armap.py track.wav [--bpm 120] [--sections 6]
+python3 scripts/armap.py track.wav [--bpm 120] [--sections 6] [--json map.json]
 ```
 
 ## Limits

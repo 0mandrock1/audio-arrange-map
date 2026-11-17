@@ -2,7 +2,7 @@
 name: audio-arrange-map
 description: "Turn a reference track (audio file) into a bar-numbered arrangement map: tempo, bar grid, section boundaries snapped to the 4-bar phrase grid, per-section energy and brightness deltas, and a cue-marker list for a DAW — so a new track can be blocked out against a proven energy curve. Runs scripts/armap.py (librosa). Trigger on: \"/audio-arrange-map\", \"розклади референс\", \"структура референсу\", \"арейнж-мапа\", \"по тактах розпиши трек\", \"де дропи і білди в цьому треку\", \"arrangement map\", \"map this reference\", \"how is this track arranged\", or when an audio reference is attached with a question about its structure. NOT trigger: mixing, device chains, sound design — answer directly or use a DAW helper skill; delay/reverb ms from BPM — bpm; stem separation or audio-to-MIDI — answer directly."
 metadata:
-  version: '1.0.0'
+  version: '1.1.0'
 ---
 
 # audio-arrange-map
@@ -20,11 +20,12 @@ An attached or local file (wav, flac, mp3, ogg). A streaming link only → say t
 ## Step 2 — Run
 
 ```sh
-python3 scripts/armap.py <file> [--bpm N] [--sections K] [--beats-per-bar 4]
+python3 scripts/armap.py <file> [--bpm N] [--sections K] [--beats-per-bar 4] [--json out.json]
 ```
 
 - Tempo off by a ratio (half/double), or a few BPM off on rubato material → rerun with `--bpm` from the user or the track's metadata. A wrong tempo shifts every bar number; check this first.
-- Auto boundaries over-split ambient intros/outros → rerun with `--sections K` (K from a listen, usually 5–8).
+- Auto boundaries over-split ambient intros/outros, or merge an intro into the first verse when layers enter gradually → rerun with `--sections K` (K from a listen, usually 5–8).
+- Need a chart or further analysis → add `--json out.json` (per-bar energy/brightness, novelty curve, bar-level self-similarity matrix, sections).
 
 ## Step 3 — Read, don't just paste
 

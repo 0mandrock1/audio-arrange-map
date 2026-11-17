@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Bar-numbered arrangement map of a reference track.
 
-Usage: armap.py <audio> [--bpm N] [--sections K] [--beats-per-bar 4]
+Usage: armap.py <audio> [--bpm N] [--sections K] [--beats-per-bar 4] [--json OUT]
 Prints: tempo, bar count, a section table (bars, start time, energy, brightness,
-delta vs previous section) and a Bitwig-ready cue list (bar.beat + name).
+delta vs previous section) and a DAW cue list (bar.beat + name).
+--json OUT also writes per-bar energy/brightness, the novelty curve, the bar-level
+self-similarity matrix and the sections, for charts or further analysis.
 """
 import argparse
+import json
 import sys
 import warnings
 
@@ -20,6 +23,7 @@ def main():
     ap.add_argument("--bpm", type=float, default=None, help="override detected tempo")
     ap.add_argument("--sections", type=int, default=0, help="force K sections (0 = auto)")
     ap.add_argument("--beats-per-bar", type=int, default=4)
+    ap.add_argument("--json", default=None, help="also write analysis data to this file")
     a = ap.parse_args()
 
     y, sr = librosa.load(a.audio, sr=22050, mono=True)
@@ -41,10 +45,16 @@ def main():
     strength = onset[np.clip(beats, 0, len(onset) - 1)]
     bpb = a.beats_per_bar
     phase = int(np.argmax([strength[p::bpb].mean() for p in range(bpb)]))
-    bar_t = beat_t[phase::bpb]
+    # Regular grid from tempo + downbeat anchor: the beat tracker drops beats in
+    # sparse passages (pads, no percussion), and counting raw beats would merge bars.
+    period = bpb * 60.0 / tempo
+    t0 = float(np.median((beat_t[phase::bpb] - beat_t[phase]) % period + beat_t[phase]) % period)
+    if t0 > period - 0.05:
+        t0 = 0.0
+    bar_t = np.arange(t0, dur, period)
     if bar_t[0] > 0.05:
-        bar_t = np.concatenate([[0.0], bar_t])
-    bar_t = np.append(bar_t, dur)
+        bar_t = np.concatenate([[0.0], bar_t])  # pickup counts as bar 1
+    bar_t = np.append(bar_t[bar_t < dur - 0.25 * period], dur)
     nbars = len(bar_t) - 1
 
     # Per-bar features: RMS energy (dB), spectral centroid (brightness), chroma+mfcc for similarity.
@@ -80,7 +90,7 @@ def main():
                 break
     else:
         thr = nov.mean() + 0.5 * nov.std()
-        bounds = [i for i in range(2, nbars - 1)
+        bounds = [i for i in range(4, nbars - 3)
                   if nov[i] > thr and nov[i] == nov[max(0, i - 3):i + 4].max()]
     # Snap to phrase grid (multiples of 4 bars) when within one bar of it.
     snapped = []
@@ -94,7 +104,7 @@ def main():
     e_db = np.array(e_db)
     peak = e_db.max()
     print(f"file   {a.audio}")
-    print(f"tempo  {tempo:.1f} BPM   bars {nbars} ({bpb}/4)   length {dur/60:.0f}:{dur%60:04.1f}")
+    print(f"tempo  {tempo:.1f} BPM   bars {nbars} ({bpb}/4)   length {int(dur // 60)}:{dur % 60:04.1f}")
     print()
     print(f"{'#':>2}  {'bars':>9}  {'len':>3}  {'start':>6}  {'energy':>7}  {'Δ':>5}  {'bright':>6}")
     prev = None
@@ -112,6 +122,20 @@ def main():
     print("cues (bar.beat → name; rename after listening)")
     for n, (s, en) in enumerate(rows):
         print(f"  {s+1}.1  S{n+1}")
+
+    if a.json:
+        out = {
+            "tempo": round(float(tempo), 2), "beats_per_bar": bpb, "duration": round(dur, 2),
+            "bar_starts": [round(float(x), 3) for x in bar_t[:-1]],
+            "energy_db": [round(float(x - peak), 2) for x in e_db],
+            "brightness_hz": [round(float(x)) for x in bright],
+            "novelty": [round(float(x), 3) for x in nov],
+            "ssm": [[round(float(v), 2) for v in row] for row in S],
+            "sections": [{"first_bar": edges[n] + 1, "last_bar": edges[n + 1],
+                          "energy_db": round(rows[n][1], 2)} for n in range(len(rows))],
+        }
+        with open(a.json, "w") as f:
+            json.dump(out, f, separators=(",", ":"))
 
 
 if __name__ == "__main__":
